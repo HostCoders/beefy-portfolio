@@ -1,13 +1,17 @@
-node_modules
+**/node_modules
 
 # dependencies, yarn, etc
 # yarn / eslint
-.yarn/*
+**/.yarn/*
 !.yarn/patches
 !.yarn/plugins
 !.yarn/releases
 !.yarn/sdks
 !.yarn/versions
-.eslintcache
-.vscode/**
-.DS_Store
+**/.eslintcache
+**/.vscode/**
+**/.DS_Store
+**/.env
+/packages/lambda/coverage/**
+/packages/lambda/.env
+/packages/lambda/.nyc_output/**

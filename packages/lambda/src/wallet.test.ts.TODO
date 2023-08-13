@@ -1,0 +1,54 @@
+import { ethers } from 'ethers'
+import { convertToNumber } from './wallet'
+import BeefyApiClient from './beefy'
+import { ERC20Balances } from './ERC20Balances'
+
+const chain = 'optimism'
+const wallet = '0xbeaeaeaf567ca8fb8b0ea9931c74d6107010d1c5'
+describe('ERC20Balances', () => {
+  let provider: ethers.providers.JsonRpcProvider
+  let balances: ERC20Balances
+  let results: any
+  let lastBlock: number
+
+  const client = new BeefyApiClient('https://api.beefy.finance')
+
+  beforeEach(async () => {
+    // eslint-disable-next-line no-secrets/no-secrets
+    provider = new ethers.providers.JsonRpcProvider('https://rpc.ankr.com/optimism/f3bd996ea0ae4c1ac5aee7905f2ad8947715d45233456e54200506230939b74d')
+    balances = new ERC20Balances(provider)
+    lastBlock = await provider.getBlockNumber()
+  })
+
+  it('should get the balances of multiple ERC20Contract tokens', async () => {
+    const tokens = await client.getTokens()
+
+    results = await balances.getAllTokenBalances(tokens, chain, wallet, lastBlock)
+    results = results.filter((result: any) => result.balance > 0)
+    results = results.filter((result: any) => result.symbol == 'LINK')
+
+    expect(results).toEqual([
+      {
+        name: 'ChainLink Token',
+        symbol: 'LINK',
+
+        balance: 3.361011532664529
+      }
+    ])
+  })
+
+  it('should convert hex to number with default decimals', () => {
+    const hex = ethers.BigNumber.from('0x3e8') // 1000 in hex
+    const expectedOutput = 0.000000000000001 // 1000 / 10^18
+
+    expect(convertToNumber(hex)).toBeCloseTo(expectedOutput)
+  })
+
+  it('should convert hex to number with specified decimals', () => {
+    const hex = ethers.BigNumber.from('0x3e8') // 1000 in hex
+    const decimals = 3
+    const expectedOutput = 1 // 1000 / 10^3
+
+    expect(convertToNumber(hex, decimals)).toBeCloseTo(expectedOutput)
+  })
+})
