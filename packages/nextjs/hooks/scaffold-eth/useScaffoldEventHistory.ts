@@ -13,9 +13,9 @@ import { ContractAbi, ContractName, UseScaffoldEventHistoryConfig } from "~~/uti
  * @param config.eventName - name of the event to listen for
  * @param config.fromBlock - the block number to start reading events from
  * @param config.filters - filters to be applied to the event (parameterName: value)
- * @param config.blockData - if set to true it will return the block data for each event (default: false)
- * @param config.transactionData - if set to true it will return the transaction data for each event (default: false)
- * @param config.receiptData - if set to true it will return the receipt data for each event (default: false)
+ * @param config.blockData - if set to true it will apy the block data for each event (default: false)
+ * @param config.transactionData - if set to true it will apy the transaction data for each event (default: false)
+ * @param config.receiptData - if set to true it will apy the receipt data for each event (default: false)
  */
 export const useScaffoldEventHistory = <
   TContractName extends ContractName,

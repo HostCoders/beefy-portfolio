@@ -1,0 +1,49 @@
+import { ethers } from 'ethers'
+import { convertToNumber } from './wallet'
+import { VelodromeContract } from './velodromeContract'
+
+// eslint-disable-next-line no-secrets/no-secrets
+const MAI = '0xdfa46478f9e5ea86d57387849598dbfb2e964b02'
+// eslint-disable-next-line no-secrets/no-secrets
+const USDC = '0x7f5c764cbc14f9669b88837ca1490cca17c31607'
+// eslint-disable-next-line no-secrets/no-secrets
+const contractAddress = '0xa062aE8A9c5e11aaA026fc2670B0D65cCc8B2858'
+// eslint-disable-next-line no-secrets/no-secrets
+const url = 'https://rpc.ankr.com/optimism/f3bd996ea0ae4c1ac5aee7905f2ad8947715d45233456e54200506230939b74d'
+
+describe('quoteAddLiquidity', () => {
+  let provider: ethers.providers.JsonRpcProvider
+  // let lastBlock: number;
+  let velo: VelodromeContract
+
+  beforeEach(async () => {
+    provider = new ethers.providers.JsonRpcProvider(url)
+    velo = new VelodromeContract(provider.getSigner(), contractAddress)
+  })
+
+  it('should quoteAddLiquidity', async () => {
+    const desiredMAI = ethers.utils.parseEther('10')
+    const desiredUSDC = ethers.utils.parseEther('10')
+    const result = await velo.quoteAddLiquidity(
+      MAI,
+      USDC,
+      true,
+      desiredMAI,
+      desiredUSDC)
+    console.log('desiredMAI:', ethers.utils.formatEther(desiredMAI))
+    console.log('desiredUSDC:', ethers.utils.formatEther(desiredUSDC))
+    console.log('Amount A:', convertToNumber(result.amountA))
+    console.log('Amount B:', convertToNumber(result.amountB, 6))
+    console.log('Liquidity:', ethers.utils.formatEther(result.liquidity))
+    console.log('ratio:', ethers.utils.formatEther(result.amountA.div(result.amountB)))
+    console.log('ratio2:', ethers.utils.formatEther(result.amountB.div(result.amountA)))
+  })
+
+  it('should quote Stable Liquidity Ratio', async () => {
+    const result = await velo.quoteStableLiquidityRatio(
+      USDC,
+      MAI
+    )
+    console.log('Ratio:', convertToNumber(result))
+  })
+})
