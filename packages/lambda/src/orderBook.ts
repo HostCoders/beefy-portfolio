@@ -1,4 +1,5 @@
 import { type Order } from './portfolio'
+import { type Vault } from './beefy'
 
 export class OrderBook {
   newRisk: number
@@ -14,6 +15,9 @@ export class OrderBook {
     this.orders = this.filterValidOrders(orders)
   }
 
-  filterValidOrders = (orders: Order[]): Order[] =>
+  filterValidOrders = (orders: Order[]) =>
     orders.filter((order) => order.value > this.MIN_ORDER_VALUE)
+
+  findRelatedOrder = (vault: Vault) =>
+    this.orders.find((order) => order.AssetId === vault.id)
 }

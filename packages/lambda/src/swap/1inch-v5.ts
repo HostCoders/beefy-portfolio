@@ -262,11 +262,11 @@ export class HttpClient<SecurityDataType = unknown> {
  * Using 1inch Swap API, you can find the best route to exchange assets and make the exchange.
  * <br><br>
  * Step by step:
- * 1. Lookup addresses of tokens you want to swap, for example ‘0xxx’ , ‘0xxxx’ for DAI -> 1INCH
+ * 1. Lookup addresses of tokens you want to findRoute, for example ‘0xxx’ , ‘0xxxx’ for DAI -> 1INCH
  * 2. Check for allowance of 1inch router contract to spend source asset (/approve/allowance)
  * 3. If necessary, give approval for 1inch router to spend source token (/approve/transaction)
  * 4. Monitor the best exchange route using (/quote)
- * 5. When you ready use to perform swap (/swap)
+ * 5. When you ready use to perform findRoute (/findRoute)
  *
  */
 export class OneInchV5<SecurityDataType extends unknown> extends HttpClient<SecurityDataType> {
@@ -365,7 +365,7 @@ export class OneInchV5<SecurityDataType extends unknown> extends HttpClient<Secu
          *
          * @tags Info
          * @name ChainTokensControllerGetTokens
-         * @summary List of tokens that are available for swap in the 1inch Aggregation protocol
+         * @summary List of tokens that are available for findRoute in the 1inch Aggregation protocol
          * @request GET:/v5.2/${chainID}/tokens
          */
     chainTokensControllerGetTokens: async (chainID: number, params: RequestParams = {}) =>
@@ -425,22 +425,22 @@ export class OneInchV5<SecurityDataType extends unknown> extends HttpClient<Secu
         amount: string
         /** default: all */
         protocols?: string
-        /** Min: 0; max: 3; Max: 0; max: 3; default: 0;  !should be the same for quote and swap! */
+        /** Min: 0; max: 3; Max: 0; max: 3; default: 0;  !should be the same for quote and findRoute! */
         fee?: string
         /** Return fromToken and toToken info in response */
         includeTokensInfo?: boolean
-        /** Return swap protocols in response */
+        /** Return findRoute protocols in response */
         includeProtocols?: boolean
         /** Return estimated gas in response */
         includeGas?: boolean
         gasLimit?: any
-        /** max: 5; !should be the same for quote and swap! */
+        /** max: 5; !should be the same for quote and findRoute! */
         connectorTokens?: any
-        /** min: 0; max: 3; default: 2; !should be the same for quote and swap! */
+        /** min: 0; max: 3; default: 2; !should be the same for quote and findRoute! */
         complexityLevel?: any
-        /** default: 10; max: 50  !should be the same for quote and swap! */
+        /** default: 10; max: 50  !should be the same for quote and findRoute! */
         mainRouteParts?: any
-        /** split parts. default: 50;  max: 100!should be the same for quote and swap! */
+        /** split parts. default: 50;  max: 100!should be the same for quote and findRoute! */
         parts?: any
         /** default: fast from network */
         gasPrice?: any
@@ -461,7 +461,7 @@ export class OneInchV5<SecurityDataType extends unknown> extends HttpClient<Secu
          * @tags Swap
          * @name ExchangeControllerGetSwap
          * @summary Generate data for calling the 1inch router for exchange
-         * @request GET:/v5.2/${chainID}/swap
+         * @request GET:/v5.2/${chainID}/findRoute
          */
     exchangeControllerGetSwap: async (chainID: number,
       query: {
@@ -480,25 +480,25 @@ export class OneInchV5<SecurityDataType extends unknown> extends HttpClient<Secu
         slippage: number
         /** default: all */
         protocols?: string
-        /** Min: 0; max: 3; Max: 0; max: 3; default: 0;  !should be the same for quote and swap! */
+        /** Min: 0; max: 3; Max: 0; max: 3; default: 0;  !should be the same for quote and findRoute! */
         fee?: string
         disableEstimate?: boolean
         /** https://eips.ethereum.org/EIPS/eip-2612 */
         permit?: string
         /** Return fromToken and toToken info in response */
         includeTokensInfo?: boolean
-        /** Return swap protocols in response */
+        /** Return findRoute protocols in response */
         includeProtocols?: boolean
         /** Allows to build calldata without optimized routers */
         compatibility?: boolean
         allowPartialFill?: boolean
-        /** split parts. default: 50;  max: 100!should be the same for quote and swap! */
+        /** split parts. default: 50;  max: 100!should be the same for quote and findRoute! */
         parts?: any
-        /** default: 10; max: 50  !should be the same for quote and swap! */
+        /** default: 10; max: 50  !should be the same for quote and findRoute! */
         mainRouteParts?: any
-        /** max: 5; !should be the same for quote and swap! */
+        /** max: 5; !should be the same for quote and findRoute! */
         connectorTokens?: any
-        /** min: 0; max: 3; default: 2; !should be the same for quote and swap! */
+        /** min: 0; max: 3; default: 2; !should be the same for quote and findRoute! */
         complexityLevel?: any
         gasLimit?: any
         /** default: fast from network */

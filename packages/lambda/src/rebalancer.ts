@@ -6,7 +6,7 @@ import BeefyApiClient, {
   type Vault
 } from './beefy'
 import { BigNumber, type Signer } from 'ethers'
-import { OrderType, Portfolio } from './portfolio'
+import { type Order, OrderType, Portfolio } from './portfolio'
 import { TokenInfoRetriever } from './coingecko'
 import { type PlatformList } from './platform'
 import { Assets } from './assets'
@@ -85,14 +85,14 @@ export class Rebalancer {
     return portfolio.balance(0)
   }
 
-  async execute (balanceResult: OrderBook) {
+  async execute (orderBook: OrderBook) {
     // If there are no orders, there is nothing to rebalanceOrders
-    if (balanceResult.orders.length === 0) {
+    if (orderBook.orders.length === 0) {
       console.log('Portfolio is balanced.')
       return
     }
 
-    const { sellVaults, vaultsToExit } = this.getVaultsToExit(balanceResult)
+    const { sellVaults, vaultsToExit } = this.getVaultsToExit(orderBook)
 
     if (vaultsToExit.length > 0) {
       this.exitVaults(vaultsToExit)
@@ -103,32 +103,36 @@ export class Rebalancer {
       buyVaultsToEnterWithAllAssetsPresent,
       buyVaultsToEnterWithOnlyOneAssetPresent,
       buyVaultsToEnterWithoutAssetPresent
-    } = this.getVaultsToEnter(balanceResult, sellVaults)
+    } = this.getVaultsToEnter(orderBook, sellVaults)
 
     // if we have a vault to enter, enter the position
     if (buyVaultsToEnterWithAllAssetsPresent.length > 0) {
-      await this.enterVault(buyVaultsToEnterWithAllAssetsPresent, sellVaults)
+      // we take the first one
+      const order = orderBook.findRelatedOrder(buyVaultsToEnterWithAllAssetsPresent[0])
+      if (order == null) { throw new Error('Order not found') }
+      await this.enterVault(buyVaultsToEnterWithAllAssetsPresent[0], sellVaults, order)
       return
     }
 
-    // we have to swap to enter position
-    console.log('We have to swap to enter position')
+    // we have to findRoute to enter position
+    console.log('We have to findRoute to enter position')
     if (buyVaultsToEnterWithOnlyOneAssetPresent.length > 0) {
-      console.log('Only one asset present in wallet, swap the other one')
+      console.log('Only one asset present in wallet, findRoute the other one')
 
       // first find the missing asset
       // TODO we take the first one, but we should take the one with the biggest amount (?)
-      const asset1 = buyVaultsToEnterWithOnlyOneAssetPresent[0].asset1 as Token
-      const asset2 = buyVaultsToEnterWithOnlyOneAssetPresent[0].asset2 as Token
+      const vaultMissingOneAsset = buyVaultsToEnterWithOnlyOneAssetPresent[0]
+      const order = orderBook.findRelatedOrder(vaultMissingOneAsset)
+      if (order == null) { throw new Error('Order not found') }
+
+      const asset1 = vaultMissingOneAsset.asset1 as Token
+      const asset2 = vaultMissingOneAsset.asset2 as Token
       // TODO, use ratio, here we assume 50/50
-      const amountToFind =
-                (buyVaultsToEnterWithOnlyOneAssetPresent[0].price *
-                    buyVaultsToEnterWithOnlyOneAssetPresent[0].current) /
-                2
+      const amountToSwap = order.value / 2
       if (sellVaults.findVaultByTokenAddress(asset1.address.toLowerCase()) != null) {
-        await sellVaults.swapAssets(this.signer, asset2, asset1, amountToFind)
+        await sellVaults.swapAssets(this.chain, this.signer, asset2, asset1, amountToSwap)
       } else if (sellVaults.findVaultByTokenAddress(asset2.address.toLowerCase()) != null) {
-        await sellVaults.swapAssets(this.signer, asset1, asset2, amountToFind)
+        await sellVaults.swapAssets(this.chain, this.signer, asset1, asset2, amountToSwap)
       }
 
       // eslint-disable-next-line no-secrets/no-secrets
@@ -138,10 +142,10 @@ export class Rebalancer {
       throw new Error('NOT IMPLEMENTED')
     }
 
-    // we have to swap to enter position
-    console.log('We have to swap to enter position')
+    // we have to findRoute to enter position
+    console.log('We have to findRoute to enter position')
     if (buyVaultsToEnterWithoutAssetPresent.length > 0) {
-      console.log('No asset present in wallet, swap both')
+      console.log('No asset present in wallet, findRoute both')
       // TODO enter position
       throw new Error('NOT IMPLEMENTED')
     }
@@ -151,7 +155,7 @@ export class Rebalancer {
                          // sellVaults contains only wallet positions
 
                          // Find the highest value buy
-                         let buyOrder = balanceResult.orders.filter((order) => order.type === OrderType.Buy).reduce((prev, current) => (prev.value > current.value) ? prev : current)
+                         let buyOrder = orderBook.orders.filter((order) => order.type === OrderType.Buy).reduce((prev, current) => (prev.value > current.value) ? prev : current)
 
                          // Find the vault associated with the buy order
                          let buyVault = assets.find((vault) => vault.id === buyOrder.AssetId);
@@ -181,9 +185,6 @@ export class Rebalancer {
     // Filter out assets from unsupported chains
     this.assets.filterOutUnsupportedChains(this.chain)
 
-    // Disable risky or unsupported assets
-    this.assets.disableRiskyOrUnsupported(this.supportedPlatform, this.supportedAssets)
-
     // Enrich assets with additional data
     this.assets.enrichVaults(
       this.annualPercentYields,
@@ -195,6 +196,9 @@ export class Rebalancer {
       this.liquidityPools,
       this.walletBalances
     )
+
+    // Disable risky or unsupported assets
+    await this.assets.disableRiskyOrUnsupported(this.supportedPlatform, this.supportedAssets, this.chain)
 
     // Disable assets with total value locked (TVL) too low
     this.assets.disableVaultWithTVLTooLow()
@@ -209,10 +213,7 @@ export class Rebalancer {
     )
   }
 
-  private async enterVault (buyVaultsToEnterWithAllAssetsPresent: Vault[], sellVaults: Assets) {
-    console.log('All assets present in wallet, we have a LP to create', buyVaultsToEnterWithAllAssetsPresent[0].id)
-    // TODO enter position
-    const vaultToEnter = buyVaultsToEnterWithAllAssetsPresent[0]
+  private async enterVault (vaultToEnter: Vault, sellVaults: Assets, order: Order) {
     console.log('Entering position', vaultToEnter.id, 'for a total of', vaultToEnter.current, 'USD')
 
     // check liquidity ratio for both token
@@ -240,9 +241,17 @@ export class Rebalancer {
       formatUnits(liquiditiesToAdd.amountA, asset1.decimals),
       formatUnits(liquiditiesToAdd.amountB, asset2.decimals)
     )
-    //    const ratio = await myPlatform.getLiquidityRatio(asset1.address, asset1.decimals, asset2.address, asset2.decimals)
 
-    //   console.log("Liquidity ratio", ratio.toString())
+    // we might have too much liquidities, we need to remove some
+    // what's the value of the liquidity in USD ?
+
+    const liquidityInUSD = liquiditiesToAdd.liquidity.mul(vaultToEnter.price * 10 ^ 18)
+
+    const ratio = liquidityInUSD.div(order.value)
+
+    console.log('Liquidity ratio', ratio.toString())
+
+    if (ratio.gte(0)) throw new Error('NOT IMPLEMENTED')
 
     if (asset1Vault === undefined || asset1Vault.price === undefined || asset2Vault?.price == null || vaultToEnter?.price == null) throw new Error('Price not found')
 

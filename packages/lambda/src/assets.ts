@@ -9,8 +9,9 @@ import { type Order, OrderType } from './portfolio'
 import { type PlatformList } from './platform'
 import { type TokenInfoRetriever } from './coingecko'
 import { type WalletContent } from './walletContent'
-import { Swap } from './swap'
-import { type Signer } from 'ethers'
+import { type Signer, utils } from 'ethers'
+import { ERC20Contract } from './ERC20Contract'
+import { Kyberswap } from './swap/kyberswap'
 
 export type AssetPresenceCondition = (asset1Present: boolean, asset2Present: boolean) => boolean
 
@@ -70,17 +71,36 @@ export class Assets {
       value: Math.abs(startAsset.current - endAssets.vaults[i].current) * startAsset.price
     }))
 
-  public disableRiskyOrUnsupported = (supportedPlatform: PlatformList, supportedAssets: string[]) => {
-    this.vaults.forEach(vault => {
+  public disableRiskyOrUnsupported = async (supportedPlatform: PlatformList, supportedAssets: string[], chain1: string) => {
+    const swap = new Kyberswap(chain1)
+    for (const vault of this.vaults) {
       if (!vault.disabled) vault.disabled = []
       if (vault.status === 'eol') vault.disabled.push('EOL')
       if (!(vault.platformId.toLowerCase() in supportedPlatform)) vault.disabled.push('UNSUPPORTED_PLATFORM')
-      if (vault.lastHarvest < new Date().getTime() / 1000 - this.FOUR_DAYS_IN_SECONDS) { vault.disabled.push('NO_HARVEST_IN_4_DAYS') }
+      if (vault.lastHarvest < new Date().getTime() / 1000 - this.FOUR_DAYS_IN_SECONDS) {
+        vault.disabled.push('NO_HARVEST_IN_4_DAYS')
+      }
       if (vault.status !== 'active') vault.disabled.push('INACTIVE')
       if (vault.oracle !== 'lps') vault.disabled.push('NOT_LIVE_PRICE_ORACLE')
-      if (!vault.assets.every(asset => supportedAssets.includes(asset.toUpperCase()))) { vault.disabled.push('UNSUPPORTED_ASSET') }
+      if (!vault.assets.every(asset => supportedAssets.includes(asset.toUpperCase()))) {
+        vault.disabled.push('UNSUPPORTED_ASSET')
+      }
       if (vault.tokenDecimals !== 18) vault.disabled.push('UNSUPPORTED_DECIMALS')
-    })
+      console.log('vault.asset1?.address', vault.asset1?.symbol)
+      if (vault.disabled.length === 0) {
+        const checkAndPushUnswappable = async (asset: Token | undefined) =>
+          asset?.address && asset.address !== 'native' && !await swap.isTokenSupported(asset.address)
+            ? vault.disabled.push(`UNSWAPPABLE_ASSET ${asset.symbol}`)
+            : undefined
+
+        await Promise.all([
+          checkAndPushUnswappable(vault.asset1),
+          checkAndPushUnswappable(vault.asset2),
+          checkAndPushUnswappable(vault.asset3),
+          checkAndPushUnswappable(vault.asset4)
+        ])
+      }
+    }
   }
 
   public disableVaultWithTVLTooLow = () => { this.vaults.filter(vault => vault.tvl <= 10000).forEach(vault => vault.disabled.push('TVL_TOO_LOW')) }
@@ -241,20 +261,26 @@ export class Assets {
     console.table(this.vaults)
   }
 
-  async swapAssets (signer: Signer, to: Token, keep: Token, amountUSD: number) {
+  async swapAssets (chain: string, signer: Signer, to: Token, keep: Token, amountUSD: number) {
     console.log('swapping', to, keep, amountUSD)
     for (const vault of this.vaults) {
       if (vault.tokenAddress !== keep.address) {
         // TODO we take the first token available, we can do better
 
-        const chainID = 137
         const src = vault.tokenAddress
         const dst = to.address
         const from = await signer.getAddress()
-        const amount = '????' // 1 DAI (with 18 decimal places)
+        const totalToBuyBN = utils.parseUnits((amountUSD * (1 / vault.price)).toString(), 18)
+
         const slippage = 0 // 0 slippage
 
-        await new Swap(signer).swap(chainID, src, dst, from, amount, slippage)
+        const balance = await new ERC20Contract(signer, src).balanceOf(from)
+
+        let amount = totalToBuyBN.toString()
+
+        if (balance.lt(totalToBuyBN)) amount = balance.toString()
+
+        await new Kyberswap(chain).swap(src, dst, from, amount, slippage, signer)
       }
     }
   }

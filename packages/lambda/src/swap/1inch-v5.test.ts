@@ -92,7 +92,7 @@ describe('test 1inch v5', () => {
     console.table(res.data)
   })
 
-  it('should create swap transaction', async () => {
+  it('should create findRoute transaction', async () => {
     // eslint-disable-next-line no-secrets/no-secrets
     /* await sleep();
         let oneInchV5 = new OneInchV5();

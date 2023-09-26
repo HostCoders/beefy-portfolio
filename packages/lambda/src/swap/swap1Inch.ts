@@ -1,37 +1,40 @@
-import { OneInchV5, type TokenDto } from './1inch-v5'
 import { type Signer } from 'ethers'
+import { OneInchV5, type TokenDto } from './1inch-v5'
 
-export class Swap {
+export class Swap1Inch {
   signer: Signer
   // eslint-disable-next-line no-secrets/no-secrets
   authorization = 'Bearer wxrELgcvgqhUpFzNUfkXzjvbR3Dk7hG0'
+  tokenList: Record<string, TokenDto> = {}
+  private readonly chainID: number = 0
 
-  constructor (signer: Signer) {
+  constructor (signer: Signer, chain: string) {
+    if (chain === 'polygon') {
+      this.chainID = 137
+    } else
+      if (chain === 'bsc') {
+        this.chainID = 56
+      }
     this.signer = signer
   }
 
-  async swap (chainID: number, src: string, dst: string, from: string, amount: string, slippage: number) {
+  async swap (src: string, dst: string, from: string, amount: string, slippage: number) {
     await this.checkHealth()
-    // @ts-expect-error
-    const tokenList: Record<string, TokenDto> = await this.getSwappableTokenList(chainID)
 
-    const tokenListElement = tokenList[src.toLowerCase()]
-    const tokenListElement1 = tokenList[dst.toLowerCase()]
-
-    if (tokenListElement === undefined || tokenListElement1 === undefined) {
-      throw new Error('srcToken or dstToken not available for swap')
+    if (await this.findToken(src) === undefined || await this.findToken(dst) === undefined) {
+      throw new Error('srcToken or dstToken not available for findRoute')
     }
 
-    const allowance: number = await this.checkAllowance(chainID, src, from)
+    const allowance: number = await this.checkAllowance(this.chainID, src, from)
 
     if (allowance < parseInt(amount)) {
-      const approvalTransaction = await this.getApprovalTransaction(chainID, src, amount)
+      const approvalTransaction = await this.getApprovalTransaction(this.chainID, src, amount)
       console.log(approvalTransaction)
       const res = await this.signer.sendTransaction(approvalTransaction)
       console.log(res.hash)
     }
 
-    const swapTransaction = await this.createSwapTransaction(chainID, src, dst, from, amount, slippage)
+    const swapTransaction = await this.createSwapTransaction(this.chainID, src, dst, from, amount, slippage)
     console.log(swapTransaction.toAmount)
     // @ts-expect-error
     delete swapTransaction.tx.gas
@@ -42,6 +45,18 @@ export class Swap {
   async sleep () {
     return await new Promise(resolve => setTimeout(resolve, 1000))
   };
+
+  public readonly findToken = async (src: string) => {
+    if (Object.keys(this.tokenList).length === 0) {
+      await this.initTokenList()
+    }
+    return this.tokenList[src.toLowerCase()]
+  }
+
+  private async initTokenList () {
+    // @ts-expect-error
+    this.tokenList = await this.getSwappableTokenList(this.chainID)
+  }
 
   private async checkAllowance (chainID: number, tokenAddress: string, walletAddress: string): Promise<number> {
     const oneInchV5 = new OneInchV5()
@@ -154,7 +169,7 @@ const wallet = new Wallet('YOUR_PRIVATE_KEY', provider)
 
 const fromTokenAddress = '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48' // USDC
 const toTokenAddress = '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2' // ETH
-const amount = '100' // Amount of USDC to swap
+const amount = '100' // Amount of USDC to findRoute
 
 const quote = await oneInch.getQuote(provider, fromTokenAddress, toTokenAddress, amount)
 const toTokenAmount = quote.toTokenAmount
